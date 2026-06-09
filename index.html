@@ -37,6 +37,9 @@
   .ctrl .top{display:flex; justify-content:space-between; align-items:baseline; margin-bottom:9px;}
   .ctrl .lbl{font-size:14px; color:var(--ink);}
   .ctrl .val{font-size:15px; font-weight:600; font-variant-numeric:tabular-nums;}
+  .ctrl .val .strike{color:var(--muted); font-weight:400; margin-right:4px;}
+  .disc-tag{display:inline-block; font-size:11px; font-weight:600; color:var(--rose);
+    background:var(--rose-bg); border-radius:6px; padding:1px 6px; margin-left:6px; vertical-align:middle;}
   .slot{display:flex; align-items:center; gap:11px;}
   .step{width:38px; height:38px; flex-shrink:0; border:1px solid var(--line);
     background:var(--surface); color:var(--ink); font-size:22px; font-weight:600; line-height:1;
@@ -72,6 +75,12 @@
     background:var(--surface); border:1px solid var(--line); border-radius:12px; cursor:pointer;
     font-family:inherit; transition:opacity .15s;}
   .reset:active{opacity:.6;}
+  .copy{display:flex; align-items:center; justify-content:center; gap:8px; width:100%;
+    margin-top:10px; padding:13px; font-size:14px; font-weight:600; color:#fff;
+    background:var(--blue); border:1px solid var(--blue); border-radius:12px; cursor:pointer;
+    font-family:inherit; transition:opacity .15s;}
+  .copy:active{opacity:.6;}
+  .copy.done{background:#1a9d57; border-color:#1a9d57;}
 
   .tabs{display:flex; gap:6px; background:var(--surface); padding:4px; border-radius:12px; margin-bottom:18px;}
   .tabs button{flex:1; padding:9px; font-size:14px; font-weight:600; color:var(--muted);
@@ -103,6 +112,19 @@
   .dsum{display:flex; justify-content:space-between; align-items:baseline; margin-top:14px;
     padding-top:13px; border-top:1px solid var(--line); font-size:14px;}
   .dsum .big{font-size:19px; font-weight:700; color:var(--owe); font-variant-numeric:tabular-nums;}
+
+  .vault{background:var(--blue-bg); border:1px solid var(--blue); border-radius:var(--radius);
+    padding:14px 16px; margin-top:16px;}
+  .vault .vtop{display:flex; justify-content:space-between; align-items:baseline;}
+  .vault .vlbl{font-size:13px; color:var(--blue); font-weight:600;}
+  .vault .vbig{font-size:22px; font-weight:700; color:var(--blue); font-variant-numeric:tabular-nums;}
+  .vault .vhint{font-size:12px; color:var(--muted); margin-top:4px;}
+  .vault .vcovers{margin-top:12px; padding-top:11px; border-top:1px solid var(--blue);}
+  .vault .vcov{display:flex; justify-content:space-between; align-items:center; font-size:13px; padding:4px 0;}
+  .vault .vcov .nm{color:var(--ink);}
+  .vault .vcov .st{font-variant-numeric:tabular-nums; font-weight:600;}
+  .vault .vcov .st.full{color:#1a9d57;}
+  .vault .vcov .st.part{color:var(--muted);}
 </style>
 </head>
 <body>
@@ -144,6 +166,7 @@
   </div>
 
   <button class="reset" id="reset" type="button">↺ Вернуть значения по умолчанию</button>
+  <button class="copy" id="copy-trip" type="button">📋 Скопировать расчёт поездки</button>
 
   <p class="foot">Дом, еда и алко — на всех 10 поровну. Дорога отдельно: аренда вэна и его бензин на 6 пацанов, бензин машины на 4 девочки. Минус и плюс меняют сумму на шаг, удобный для категории.</p>
   </div>
@@ -161,6 +184,10 @@
     </div>
 
     <div class="panel" id="debts"></div>
+
+    <div class="vault" id="vault"></div>
+
+    <button class="copy" id="copy-debts" type="button">📋 Скопировать кто сколько должен</button>
 
     <p class="foot" id="debts-foot"></p>
   </div>
@@ -182,6 +209,12 @@
   }
 
   var TOTAL=10, BOYS=6, GIRLS=4;
+  // === КОНТЕКСТ: Соня даёт скидку 30 000 ₽ на дом из своих денег ===
+  // Эти 30к вычитаются из стоимости дома ДО деления на 10 — как скидка,
+  // т.е. делимая база дома = (house - SONYA_HOUSE). Подарок удешевляет
+  // долю каждого. Сама Соня при этом скидывается как все (5к), её 30к
+  // НЕ считаются взносом в кассу — это именно скидка на цену дома.
+  var SONYA_HOUSE = 30000;
   var f = function(n){ return Math.round(n).toLocaleString('ru-RU') + ' ₽'; };
 
   // [id, подпись, min, max, шаг ползунка, шаг кнопок -/+, дефолт]
@@ -216,12 +249,20 @@
     ids.forEach(function(id){
       var el=document.getElementById(id);
       v[id]=+el.value;
-      document.getElementById(id+'-v').textContent=f(v[id]);
+      // Дом: показываем зачёркнутую полную цену и цену после скидки Сони (−30к).
+      if(id==='house'){
+        document.getElementById('house-v').innerHTML=
+          '<s class="strike">'+f(v.house)+'</s> '+f(Math.max(0,v.house-SONYA_HOUSE));
+      } else {
+        document.getElementById(id+'-v').textContent=f(v[id]);
+      }
       var m=meta[id];
       el.parentNode.querySelector('[data-dir="-1"]').disabled = v[id]<=m.min;
       el.parentNode.querySelector('[data-dir="1"]').disabled = v[id]>=m.max;
     });
-    var housePer=v.house/TOTAL, faPer=(v.food+v.alco)/TOTAL;
+    // Соня даёт скидку 30к на дом → делим на всех только остаток.
+    var houseBase=Math.max(0, v.house - SONYA_HOUSE);
+    var housePer=houseBase/TOTAL, faPer=(v.food+v.alco)/TOTAL;
     var boyEach=housePer+faPer+(v.rent+v.fuelM)/BOYS;
     var girlEach=housePer+faPer+v.fuelG/GIRLS;
     var grand=v.house+v.rent+v.fuelM+v.fuelG+v.food+v.alco;
@@ -242,6 +283,18 @@
     document.getElementById('g-each').textContent=f(girlEach);
 
     lastShares = { house: housePer, boy: boyEach, girl: girlEach };
+    // Снимок для экспорта/копирования расчёта поездки:
+    lastTrip = {
+      v:v, grand:grand, housePer:housePer, faPer:faPer,
+      boyEach:boyEach, girlEach:girlEach, houseBase:houseBase
+    };
+    // Категории, которые свободная касса может покрыть (в зачёт):
+    lastCats = [
+      {nm:'Еда',            sum:v.food},
+      {nm:'Алкоголь',       sum:v.alco},
+      {nm:'Бензин минивена',sum:v.fuelM},
+      {nm:'Бензин машины',  sum:v.fuelG}
+    ];
     renderDebts();
   }
 
@@ -277,22 +330,33 @@
     {n:'Алиса', g:'girl', paid:0,    e:'🐰'}
   ];
   var lastShares = {house:0, boy:0, girl:0};
+  var lastCats = [];
+  var lastTrip = null;
+  var lastDebts = null;
   var debtMode = 'house';
   function initials(name){ return name.replace(/\(.*\)/,'').trim().slice(0,2); }
 
   function renderDebts(){
     var box=document.getElementById('debts'); box.innerHTML='';
-    var totalLeft=0, totalPaid=0, shareLabel;
+    var totalLeft=0, totalPaid=0, totalOver=0, shareLabel;
+    var rows=[];   // для экспорта
     if(debtMode==='house'){ shareLabel=lastShares.house; }
     PEOPLE.forEach(function(p){
       var due = debtMode==='house' ? lastShares.house : (p.g==='boy'?lastShares.boy:lastShares.girl);
       var owe = due - p.paid;
       totalPaid += p.paid;
       if(owe>0) totalLeft += owe;
+      if(owe<0) totalOver += -owe;   // переплата → в свободную кассу
+      var oweState;
+      if(Math.round(owe)>0) oweState='должен '+f(owe);
+      else if(Math.round(owe)<0) oweState='в зачёт '+f(-owe);
+      else oweState='ровно';
+      rows.push({n:p.n, paid:p.paid, due:due, state:oweState});
       var row=document.createElement('div'); row.className='drow';
       var oweTxt, cls;
       if(Math.round(owe)>0){ oweTxt='должен '+f(owe); cls='owe'; }
-      else if(Math.round(owe)<0){ oweTxt='вернуть '+f(-owe); cls='ok'; }
+      // Переплату НЕ возвращаем: копится в зачёт других категорий (еда/алко/бензин).
+      else if(Math.round(owe)<0){ oweTxt='в зачёт '+f(-owe); cls='ok'; }
       else { oweTxt='ровно'; cls='ok'; }
       row.innerHTML =
         '<div class="av '+(p.g==='boy'?'blue':'rose')+'">'+p.e+'</div>'+
@@ -309,8 +373,38 @@
     document.getElementById('d-share').textContent = debtMode==='house' ? f(lastShares.house) : 'разная';
     document.getElementById('d-pot').textContent = f(totalPaid);
     document.getElementById('d-left').textContent = f(totalLeft);
+
+    // --- Свободная касса: переплаты, идущие в зачёт других категорий ---
+    var vault=document.getElementById('vault');
+    var coversList=[];   // для экспорта
+    if(debtMode==='house' && Math.round(totalOver)>0){
+      vault.style.display='';
+      var covers='', left=totalOver;
+      lastCats.forEach(function(c){
+        if(c.sum<=0) return;
+        var st, cls;
+        if(left>=c.sum){ st='покрыто'; cls='full'; left-=c.sum; }
+        else if(left>0){ st='−'+f(left)+' из '+f(c.sum); cls='part'; left=0; }
+        else { st=f(c.sum); cls='part'; }
+        coversList.push(c.nm+': '+st);
+        covers+='<div class="vcov"><span class="nm">'+c.nm+'</span><span class="st '+cls+'">'+st+'</span></div>';
+      });
+      vault.innerHTML=
+        '<div class="vtop"><span class="vlbl">💰 Свободная касса</span><span class="vbig">'+f(totalOver)+'</span></div>'+
+        '<div class="vhint">Переплата по дому. Не возвращаем — пускаем в зачёт по порядку:</div>'+
+        '<div class="vcovers">'+covers+'</div>';
+    } else {
+      vault.style.display='none';
+    }
+
+    // Снимок для экспорта/копирования раздела долгов:
+    lastDebts = {
+      mode:debtMode, rows:rows, totalPaid:totalPaid,
+      totalLeft:totalLeft, totalOver:totalOver, covers:coversList
+    };
+
     document.getElementById('debts-foot').textContent = debtMode==='house'
-      ? 'Только за дом: 69 800 ₽ ÷ 10 = доля каждого. Кто скинул 5к — доносит разницу, кто 0 — всю долю.'
+      ? 'За дом: Соне скидка 30 000 ₽ на цену дома, поэтому делим (дом − 30к) ÷ 10. Все скидываются по 5к, кто 0 — должен всю долю. Кто переплатил — деньги не возвращаем, они идут в свободную кассу на еду/алко/бензин.'
       : 'За всю поездку: доля пацана и девочки разная (у пацанов в ней аренда вэна). Вычитаем уже скинутые 5к.';
   }
 
@@ -332,6 +426,81 @@
   }
   document.getElementById('seg-house').addEventListener('click', function(){ switchSeg('house'); });
   document.getElementById('seg-trip').addEventListener('click', function(){ switchSeg('trip'); });
+
+  // ===== Экспорт / копирование =====
+  function tripText(){
+    var t=lastTrip; if(!t) return '';
+    var v=t.v;
+    var L=[];
+    L.push('🏝 Карелия · ДР Сони');
+    L.push('Лахденпохья · 24–26 июля · 10 человек');
+    L.push('');
+    L.push('💸 Всего: '+f(t.grand));
+    L.push('🚐 С пацана (×6): '+f(t.boyEach));
+    L.push('🚗 С девочки (×4): '+f(t.girlEach));
+    L.push('');
+    L.push('Расходы:');
+    L.push('• Дом: '+f(v.house)+' − скидка 30 000 = '+f(t.houseBase)+' (÷10 = '+f(t.housePer)+')');
+    L.push('• Аренда минивена: '+f(v.rent)+' (÷6 = '+f(v.rent/BOYS)+')');
+    L.push('• Бензин минивена: '+f(v.fuelM)+' (÷6 = '+f(v.fuelM/BOYS)+')');
+    L.push('• Бензин машины: '+f(v.fuelG)+' (÷4 = '+f(v.fuelG/GIRLS)+')');
+    L.push('• Еда: '+f(v.food));
+    L.push('• Алкоголь: '+f(v.alco));
+    L.push('• Еда+алко ÷10 = '+f(t.faPer)+' с человека');
+    return L.join('\n');
+  }
+
+  function debtsText(){
+    var d=lastDebts; if(!d) return '';
+    var L=[];
+    L.push('🏝 Карелия · кто сколько должен');
+    L.push(d.mode==='house' ? '(только за дом)' : '(за всю поездку)');
+    L.push('');
+    d.rows.forEach(function(r){
+      L.push('• '+r.n+': скинул '+f(r.paid)+' · доля '+f(r.due)+' → '+r.state);
+    });
+    L.push('');
+    L.push('Уже собрано: '+f(d.totalPaid));
+    L.push('Осталось донести всем: '+f(d.totalLeft));
+    if(Math.round(d.totalOver)>0){
+      L.push('');
+      L.push('💰 Свободная касса (переплата): '+f(d.totalOver));
+      L.push('Идёт в зачёт по порядку:');
+      d.covers.forEach(function(c){ L.push('• '+c); });
+    }
+    return L.join('\n');
+  }
+
+  function flashBtn(btn, label){
+    var orig=btn.textContent;
+    btn.textContent='✓ '+label;
+    btn.classList.add('done');
+    setTimeout(function(){ btn.textContent=orig; btn.classList.remove('done'); }, 1600);
+  }
+
+  function copyText(text, btn, label){
+    var done=function(){
+      if(tg && tg.HapticFeedback) tg.HapticFeedback.notificationOccurred('success');
+      flashBtn(btn, label);
+    };
+    if(navigator.clipboard && navigator.clipboard.writeText){
+      navigator.clipboard.writeText(text).then(done).catch(function(){ fallbackCopy(text); done(); });
+    } else { fallbackCopy(text); done(); }
+  }
+  function fallbackCopy(text){
+    var ta=document.createElement('textarea');
+    ta.value=text; ta.style.position='fixed'; ta.style.opacity='0';
+    document.body.appendChild(ta); ta.focus(); ta.select();
+    try{ document.execCommand('copy'); }catch(e){}
+    document.body.removeChild(ta);
+  }
+
+  document.getElementById('copy-trip').addEventListener('click', function(){
+    copyText(tripText(), this, 'Скопировано');
+  });
+  document.getElementById('copy-debts').addEventListener('click', function(){
+    copyText(debtsText(), this, 'Скопировано');
+  });
 
   calc();
 })();
