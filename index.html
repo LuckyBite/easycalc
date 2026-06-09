@@ -11,6 +11,7 @@
     --ink:#16191f; --muted:#6b7280; --line:#e6e8ec;
     --blue:#2563eb; --blue-bg:#eef3ff;
     --rose:#e11d6a; --rose-bg:#fff0f5;
+    --owe:#c75c5c;
     --radius:14px;
     font-size:16px;
   }
@@ -71,6 +72,37 @@
     background:var(--surface); border:1px solid var(--line); border-radius:12px; cursor:pointer;
     font-family:inherit; transition:opacity .15s;}
   .reset:active{opacity:.6;}
+
+  .tabs{display:flex; gap:6px; background:var(--surface); padding:4px; border-radius:12px; margin-bottom:18px;}
+  .tabs button{flex:1; padding:9px; font-size:14px; font-weight:600; color:var(--muted);
+    background:transparent; border:none; border-radius:9px; cursor:pointer; font-family:inherit;
+    transition:background .15s,color .15s;}
+  .tabs button.on{background:var(--card); color:var(--ink); box-shadow:0 1px 3px rgba(0,0,0,.08);}
+  .tab{display:none;}
+  .tab.on{display:block;}
+
+  .seg{display:flex; gap:6px; margin-bottom:14px;}
+  .seg button{flex:1; padding:8px; font-size:12px; font-weight:600; color:var(--muted);
+    background:var(--surface); border:1px solid var(--line); border-radius:9px; cursor:pointer; font-family:inherit;}
+  .seg button.on{color:#fff; background:var(--blue); border-color:var(--blue);}
+
+  .drow{display:flex; align-items:center; gap:11px; padding:11px 0; border-bottom:1px solid var(--line);}
+  .drow:last-child{border-bottom:none;}
+  .av{width:34px; height:34px; flex-shrink:0; border-radius:50%; display:flex; align-items:center;
+    justify-content:center; font-size:13px; font-weight:600;}
+  .av.blue{background:var(--blue-bg); color:var(--blue);}
+  .av.rose{background:var(--rose-bg); color:var(--rose);}
+  .dname{flex:1; min-width:0;}
+  .dname .n{font-size:14px; font-weight:600; line-height:1.2;}
+  .dname .paid{font-size:12px; color:var(--muted);}
+  .damt{text-align:right; flex-shrink:0;}
+  .damt .v{font-size:15px; font-weight:700; font-variant-numeric:tabular-nums; line-height:1.2;}
+  .damt .tag{font-size:11px;}
+  .v.owe{color:var(--owe);} .tag.owe{color:var(--owe);}
+  .v.ok{color:var(--muted);} .tag.ok{color:var(--muted);}
+  .dsum{display:flex; justify-content:space-between; align-items:baseline; margin-top:14px;
+    padding-top:13px; border-top:1px solid var(--line); font-size:14px;}
+  .dsum .big{font-size:19px; font-weight:700; color:var(--owe); font-variant-numeric:tabular-nums;}
 </style>
 </head>
 <body>
@@ -78,6 +110,12 @@
   <h1>Карелия · ДР Сони</h1>
   <p class="sub">Лахденпохья · 24–26 июля · 10 человек</p>
 
+  <div class="tabs">
+    <button id="tab-btn-trip" class="on" type="button">Поездка</button>
+    <button id="tab-btn-debts" type="button">Кто сколько должен</button>
+  </div>
+
+  <div class="tab on" id="tab-trip">
   <div class="metrics">
     <div class="metric"><div class="lbl">Всего</div><div class="num" id="s-grand">—</div></div>
     <div class="metric blue"><div class="lbl">С пацана ×6</div><div class="num" id="s-boy">—</div></div>
@@ -108,6 +146,24 @@
   <button class="reset" id="reset" type="button">↺ Вернуть значения по умолчанию</button>
 
   <p class="foot">Дом, еда и алко — на всех 10 поровну. Дорога отдельно: аренда вэна и его бензин на 6 пацанов, бензин машины на 4 девочки. Минус и плюс меняют сумму на шаг, удобный для категории.</p>
+  </div>
+
+  <div class="tab" id="tab-debts">
+    <div class="metrics">
+      <div class="metric"><div class="lbl">Доля с человека</div><div class="num" id="d-share">—</div></div>
+      <div class="metric blue"><div class="lbl">Уже собрано</div><div class="num blue" id="d-pot">—</div></div>
+      <div class="metric"><div class="lbl">Ещё донести</div><div class="num" id="d-left" style="color:var(--owe)">—</div></div>
+    </div>
+
+    <div class="seg">
+      <button id="seg-house" class="on" type="button">Только за дом</button>
+      <button id="seg-trip" type="button">За всю поездку</button>
+    </div>
+
+    <div class="panel" id="debts"></div>
+
+    <p class="foot" id="debts-foot"></p>
+  </div>
 </div>
 
 <script>
@@ -184,6 +240,9 @@
     document.getElementById('g-fuel').textContent=f(v.fuelG/GIRLS);
     document.getElementById('g-fa').textContent=f(faPer);
     document.getElementById('g-each').textContent=f(girlEach);
+
+    lastShares = { house: housePer, boy: boyEach, girl: girlEach };
+    renderDebts();
   }
 
   function bump(id,dir){
@@ -204,6 +263,76 @@
     if(tg && tg.HapticFeedback) tg.HapticFeedback.impactOccurred('light');
     calc();
   });
+
+  var PEOPLE = [
+    {n:'Миша',  g:'boy',  paid:5000, e:'🗿'},
+    {n:'Игорь', g:'boy',  paid:5000, e:'🥔'},
+    {n:'Вова',  g:'boy',  paid:5000, e:'😎'},
+    {n:'Рома',  g:'boy',  paid:5000, e:'🎣'},
+    {n:'Никита',g:'boy',  paid:0,    e:'🦝'},
+    {n:'Никита (слизень)', g:'boy', paid:5000, e:'🐌'},
+    {n:'Соня',  g:'girl', paid:5000, e:'👑'},
+    {n:'Даша',  g:'girl', paid:5000, e:'🦋'},
+    {n:'Света', g:'girl', paid:0,    e:'🌸'},
+    {n:'Алиса', g:'girl', paid:0,    e:'🐰'}
+  ];
+  var lastShares = {house:0, boy:0, girl:0};
+  var debtMode = 'house';
+  function initials(name){ return name.replace(/\(.*\)/,'').trim().slice(0,2); }
+
+  function renderDebts(){
+    var box=document.getElementById('debts'); box.innerHTML='';
+    var totalLeft=0, totalPaid=0, shareLabel;
+    if(debtMode==='house'){ shareLabel=lastShares.house; }
+    PEOPLE.forEach(function(p){
+      var due = debtMode==='house' ? lastShares.house : (p.g==='boy'?lastShares.boy:lastShares.girl);
+      var owe = due - p.paid;
+      totalPaid += p.paid;
+      if(owe>0) totalLeft += owe;
+      var row=document.createElement('div'); row.className='drow';
+      var oweTxt, cls;
+      if(Math.round(owe)>0){ oweTxt='должен '+f(owe); cls='owe'; }
+      else if(Math.round(owe)<0){ oweTxt='вернуть '+f(-owe); cls='ok'; }
+      else { oweTxt='ровно'; cls='ok'; }
+      row.innerHTML =
+        '<div class="av '+(p.g==='boy'?'blue':'rose')+'">'+p.e+'</div>'+
+        '<div class="dname"><div class="n">'+p.n+'</div>'+
+          '<div class="paid">скинул '+f(p.paid)+' · доля '+f(due)+'</div></div>'+
+        '<div class="damt"><div class="v '+cls+'">'+(Math.round(owe)>0?f(owe):'✓')+'</div>'+
+          '<div class="tag '+cls+'">'+oweTxt+'</div></div>';
+      box.appendChild(row);
+    });
+    var sum=document.createElement('div'); sum.className='dsum';
+    sum.innerHTML='<span>Осталось донести всем</span><span class="big">'+f(totalLeft)+'</span>';
+    box.appendChild(sum);
+
+    document.getElementById('d-share').textContent = debtMode==='house' ? f(lastShares.house) : 'разная';
+    document.getElementById('d-pot').textContent = f(totalPaid);
+    document.getElementById('d-left').textContent = f(totalLeft);
+    document.getElementById('debts-foot').textContent = debtMode==='house'
+      ? 'Только за дом: 69 800 ₽ ÷ 10 = доля каждого. Кто скинул 5к — доносит разницу, кто 0 — всю долю.'
+      : 'За всю поездку: доля пацана и девочки разная (у пацанов в ней аренда вэна). Вычитаем уже скинутые 5к.';
+  }
+
+  function switchTab(which){
+    var trip = which==='trip';
+    document.getElementById('tab-trip').classList.toggle('on', trip);
+    document.getElementById('tab-debts').classList.toggle('on', !trip);
+    document.getElementById('tab-btn-trip').classList.toggle('on', trip);
+    document.getElementById('tab-btn-debts').classList.toggle('on', !trip);
+  }
+  document.getElementById('tab-btn-trip').addEventListener('click', function(){ switchTab('trip'); });
+  document.getElementById('tab-btn-debts').addEventListener('click', function(){ switchTab('debts'); });
+
+  function switchSeg(mode){
+    debtMode=mode;
+    document.getElementById('seg-house').classList.toggle('on', mode==='house');
+    document.getElementById('seg-trip').classList.toggle('on', mode==='trip');
+    renderDebts();
+  }
+  document.getElementById('seg-house').addEventListener('click', function(){ switchSeg('house'); });
+  document.getElementById('seg-trip').addEventListener('click', function(){ switchSeg('trip'); });
+
   calc();
 })();
 </script>
