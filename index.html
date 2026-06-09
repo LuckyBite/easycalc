@@ -11,7 +11,6 @@
     --ink:#16191f; --muted:#6b7280; --line:#e6e8ec;
     --blue:#2563eb; --blue-bg:#eef3ff;
     --rose:#e11d6a; --rose-bg:#fff0f5;
-    --amber:#9a6700;
     --radius:14px;
     font-size:16px;
   }
@@ -32,18 +31,26 @@
 
   .panel{background:var(--card); border:1px solid var(--line); border-radius:var(--radius);
     padding:14px 16px; margin-bottom:16px;}
-  .ctrl{display:flex; align-items:center; gap:12px; padding:9px 0;}
+  .ctrl{padding:11px 0;}
   .ctrl:not(:last-child){border-bottom:1px solid var(--line);}
-  .ctrl label{font-size:13px; color:var(--muted); flex:1; min-width:0;}
-  .ctrl .val{font-size:14px; font-weight:600; min-width:78px; text-align:right; font-variant-numeric:tabular-nums;}
-  input[type=range]{-webkit-appearance:none; appearance:none; width:130px; height:4px;
-    background:var(--line); border-radius:4px; outline:none;}
-  input[type=range]::-webkit-slider-thumb{-webkit-appearance:none; width:20px; height:20px;
+  .ctrl .top{display:flex; justify-content:space-between; align-items:baseline; margin-bottom:9px;}
+  .ctrl .lbl{font-size:14px; color:var(--ink);}
+  .ctrl .val{font-size:15px; font-weight:600; font-variant-numeric:tabular-nums;}
+  .slot{display:flex; align-items:center; gap:11px;}
+  .step{width:38px; height:38px; flex-shrink:0; border:1px solid var(--line);
+    background:var(--surface); color:var(--ink); font-size:22px; font-weight:600; line-height:1;
+    border-radius:10px; cursor:pointer; font-family:inherit; display:flex; align-items:center;
+    justify-content:center; transition:opacity .12s; padding:0; user-select:none;}
+  .step:active{opacity:.5;}
+  .step:disabled{opacity:.3; cursor:default;}
+  input[type=range]{-webkit-appearance:none; appearance:none; flex:1; min-width:0; height:4px;
+    background:var(--line); border-radius:4px; outline:none; margin:0;}
+  input[type=range]::-webkit-slider-thumb{-webkit-appearance:none; width:22px; height:22px;
     border-radius:50%; background:var(--blue); border:2px solid #fff; box-shadow:0 0 0 1px var(--line);}
-  input[type=range]::-moz-range-thumb{width:18px; height:18px; border:none; border-radius:50%; background:var(--blue);}
+  input[type=range]::-moz-range-thumb{width:20px; height:20px; border:none; border-radius:50%; background:var(--blue);}
 
   .cars{display:grid; grid-template-columns:1fr 1fr; gap:12px;}
-  @media(max-width:460px){.cars{grid-template-columns:1fr;} input[type=range]{width:110px;}}
+  @media(max-width:460px){.cars{grid-template-columns:1fr;}}
   .car{background:var(--card); border:1px solid var(--line); border-radius:var(--radius); padding:14px 16px;}
   .car-head{display:flex; align-items:center; gap:10px; margin-bottom:10px;}
   .badge{width:36px; height:36px; border-radius:10px; display:flex; align-items:center; justify-content:center; font-size:19px;}
@@ -60,7 +67,7 @@
   .car.rose .each .big{color:var(--rose);}
   .foot{font-size:12px; color:var(--muted); line-height:1.6; margin-top:14px;}
   .reset{display:flex; align-items:center; justify-content:center; gap:8px; width:100%;
-    margin-top:16px; padding:12px; font-size:14px; font-weight:600; color:var(--ink);
+    margin-top:16px; padding:13px; font-size:14px; font-weight:600; color:var(--ink);
     background:var(--surface); border:1px solid var(--line); border-radius:12px; cursor:pointer;
     font-family:inherit; transition:opacity .15s;}
   .reset:active{opacity:.6;}
@@ -77,14 +84,7 @@
     <div class="metric rose"><div class="lbl">С девочки ×4</div><div class="num" id="s-girl">—</div></div>
   </div>
 
-  <div class="panel">
-    <div class="ctrl"><label>Дом</label><input type="range" id="house" min="50000" max="90000" step="100" value="69800"><span class="val" id="house-v"></span></div>
-    <div class="ctrl"><label>Аренда минивена</label><input type="range" id="rent" min="0" max="30000" step="500" value="21000"><span class="val" id="rent-v"></span></div>
-    <div class="ctrl"><label>Бензин минивена</label><input type="range" id="fuelM" min="0" max="12000" step="200" value="4500"><span class="val" id="fuelM-v"></span></div>
-    <div class="ctrl"><label>Бензин машины девочек</label><input type="range" id="fuelG" min="0" max="12000" step="200" value="4000"><span class="val" id="fuelG-v"></span></div>
-    <div class="ctrl"><label>Еда на всех</label><input type="range" id="food" min="0" max="40000" step="500" value="15000"><span class="val" id="food-v"></span></div>
-    <div class="ctrl"><label>Алкоголь на всех</label><input type="range" id="alco" min="0" max="40000" step="500" value="10000"><span class="val" id="alco-v"></span></div>
-  </div>
+  <div class="panel" id="panel"></div>
 
   <div class="cars">
     <div class="car blue">
@@ -107,7 +107,7 @@
 
   <button class="reset" id="reset" type="button">↺ Вернуть значения по умолчанию</button>
 
-  <p class="foot">Дом, еда и алко — на всех 10 поровну. Дорога отдельно: аренда вэна и его бензин на 6 пацанов, бензин машины на 4 девочки.</p>
+  <p class="foot">Дом, еда и алко — на всех 10 поровну. Дорога отдельно: аренда вэна и его бензин на 6 пацанов, бензин машины на 4 девочки. Минус и плюс меняют сумму на шаг, удобный для категории.</p>
 </div>
 
 <script>
@@ -125,17 +125,45 @@
     if(p.button_color) r.setProperty('--blue', p.button_color);
   }
 
-  var f = function(n){ return Math.round(n).toLocaleString('ru-RU') + ' ₽'; };
-  var ids = ['house','rent','fuelM','fuelG','food','alco'];
   var TOTAL=10, BOYS=6, GIRLS=4;
-  var defaults = {};
-  ids.forEach(function(id){ defaults[id] = document.getElementById(id).value; });
+  var f = function(n){ return Math.round(n).toLocaleString('ru-RU') + ' ₽'; };
+
+  // [id, подпись, min, max, шаг ползунка, шаг кнопок -/+, дефолт]
+  var FIELDS = [
+    ['house','Дом',50000,90000,100,1000,69800],
+    ['rent','Аренда минивена',0,30000,500,1000,14000],
+    ['fuelM','Бензин минивена',0,12000,200,500,4500],
+    ['fuelG','Бензин машины девочек',0,12000,200,500,4000],
+    ['food','Еда на всех',0,40000,500,1000,15000],
+    ['alco','Алкоголь на всех',0,40000,500,1000,10000]
+  ];
+  var ids = FIELDS.map(function(x){ return x[0]; });
+  var meta = {}, defaults = {};
+  FIELDS.forEach(function(x){ meta[x[0]]={min:x[2],max:x[3],bigStep:x[5]}; defaults[x[0]]=x[6]; });
+
+  var panel = document.getElementById('panel');
+  FIELDS.forEach(function(x){
+    var id=x[0];
+    var row=document.createElement('div'); row.className='ctrl';
+    row.innerHTML =
+      '<div class="top"><span class="lbl">'+x[1]+'</span><span class="val" id="'+id+'-v"></span></div>'+
+      '<div class="slot">'+
+        '<button class="step" type="button" data-id="'+id+'" data-dir="-1" aria-label="Меньше">−</button>'+
+        '<input type="range" id="'+id+'" min="'+x[2]+'" max="'+x[3]+'" step="'+x[4]+'" value="'+x[6]+'">'+
+        '<button class="step" type="button" data-id="'+id+'" data-dir="1" aria-label="Больше">+</button>'+
+      '</div>';
+    panel.appendChild(row);
+  });
 
   function calc(){
     var v={};
     ids.forEach(function(id){
-      v[id]=+document.getElementById(id).value;
-      document.getElementById(id+'-v').textContent=v[id].toLocaleString('ru-RU');
+      var el=document.getElementById(id);
+      v[id]=+el.value;
+      document.getElementById(id+'-v').textContent=f(v[id]);
+      var m=meta[id];
+      el.parentNode.querySelector('[data-dir="-1"]').disabled = v[id]<=m.min;
+      el.parentNode.querySelector('[data-dir="1"]').disabled = v[id]>=m.max;
     });
     var housePer=v.house/TOTAL, faPer=(v.food+v.alco)/TOTAL;
     var boyEach=housePer+faPer+(v.rent+v.fuelM)/BOYS;
@@ -157,7 +185,20 @@
     document.getElementById('g-fa').textContent=f(faPer);
     document.getElementById('g-each').textContent=f(girlEach);
   }
+
+  function bump(id,dir){
+    var el=document.getElementById(id), m=meta[id];
+    var nv=Math.round((+el.value + dir*m.bigStep)/m.bigStep)*m.bigStep;
+    nv=Math.max(m.min, Math.min(m.max, nv));
+    el.value=nv;
+    if(tg && tg.HapticFeedback) tg.HapticFeedback.selectionChanged();
+    calc();
+  }
+
   ids.forEach(function(id){ document.getElementById(id).addEventListener('input',calc); });
+  panel.querySelectorAll('.step').forEach(function(btn){
+    btn.addEventListener('click', function(){ bump(btn.getAttribute('data-id'), +btn.getAttribute('data-dir')); });
+  });
   document.getElementById('reset').addEventListener('click', function(){
     ids.forEach(function(id){ document.getElementById(id).value = defaults[id]; });
     if(tg && tg.HapticFeedback) tg.HapticFeedback.impactOccurred('light');
