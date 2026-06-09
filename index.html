@@ -133,11 +133,23 @@
   .vault .vbig{font-size:22px; font-weight:700; color:var(--blue); font-variant-numeric:tabular-nums;}
   .vault .vhint{font-size:12px; color:var(--muted); margin-top:4px;}
   .vault .vcovers{margin-top:12px; padding-top:11px; border-top:1px solid var(--blue);}
-  .vault .vcov{display:flex; justify-content:space-between; align-items:center; font-size:13px; padding:4px 0;}
-  .vault .vcov .nm{color:var(--ink);}
-  .vault .vcov .st{font-variant-numeric:tabular-nums; font-weight:600;}
+  .vault .vcov{display:flex; align-items:center; gap:9px; font-size:13px; padding:9px 8px;
+    border-radius:9px; background:var(--card); margin-bottom:6px; border:1px solid var(--line);
+    cursor:grab; touch-action:none; transition:opacity .15s,transform .1s;}
+  .vault .vcov.dragging{opacity:.5; cursor:grabbing;}
+  .vault .vcov.is-off{opacity:.45;}
+  .vault .vdrag{color:var(--muted); font-size:14px; letter-spacing:-2px; cursor:grab; user-select:none; flex-shrink:0;}
+  .vault .vchk{font-size:14px; color:var(--blue); cursor:pointer; flex-shrink:0; width:16px; text-align:center; user-select:none;}
+  .vault .vcov.is-off .vchk{color:var(--muted);}
+  .vault .vcov .nm{color:var(--ink); flex:1; min-width:0;}
+  .vault .vcov .nm small{color:var(--muted); font-size:11px;}
+  .vault .vcov .st{font-variant-numeric:tabular-nums; font-weight:600; flex-shrink:0; text-align:right;}
   .vault .vcov .st.full{color:#1a9d57;}
   .vault .vcov .st.part{color:var(--muted);}
+  .vault .vcov .st.off{color:var(--muted);}
+  .vault .vrest{display:flex; justify-content:space-between; align-items:baseline; font-size:13px;
+    margin-top:6px; padding-top:10px; border-top:1px solid var(--blue); color:var(--muted);}
+  .vault .vrest .pos{color:#1a9d57; font-weight:700; font-variant-numeric:tabular-nums;}
 </style>
 </head>
 <body>
@@ -317,12 +329,13 @@
       v:v, grand:grand, housePer:housePer, faPer:faPer,
       boyEach:boyEach, girlEach:girlEach, houseBase:houseBase
     };
-    // Категории, которые свободная касса может покрыть (в зачёт):
+    // Категории, которые свободная касса может покрыть (всё кроме дома):
     lastCats = [
-      {nm:'Еда',            sum:v.food},
-      {nm:'Алкоголь',       sum:v.alco},
-      {nm:'Бензин минивена',sum:v.fuelM},
-      {nm:'Бензин машины',  sum:v.fuelG}
+      {key:'food', nm:'Еда',             sum:v.food},
+      {key:'alco', nm:'Алкоголь',        sum:v.alco},
+      {key:'rent', nm:'Аренда минивена', sum:v.rent},
+      {key:'fuelM',nm:'Бензин минивена', sum:v.fuelM},
+      {key:'fuelG',nm:'Бензин машины',   sum:v.fuelG}
     ];
     renderDebts();
   }
@@ -360,6 +373,11 @@
   ];
   var lastShares = {house:0, boy:0, girl:0};
   var lastCats = [];
+  // Приоритет расходования кассы (перетаскиванием). Касса гасит каскадом сверху вниз.
+  var vaultOrder = ['food','alco','rent','fuelM','fuelG'];
+  var vaultOff = {};   // выключенные категории (тап по галочке)
+  var lastVaultOver = 0;
+  function catByKey(k){ for(var i=0;i<lastCats.length;i++) if(lastCats[i].key===k) return lastCats[i]; return null; }
   var lastTrip = null;
   var lastDebts = null;
   var debtMode = 'house';
@@ -403,28 +421,9 @@
     document.getElementById('d-pot').textContent = f(totalPaid);
     document.getElementById('d-left').textContent = f(totalLeft);
 
-    // --- Свободная касса: переплаты, идущие в зачёт других категорий ---
-    var vault=document.getElementById('vault');
-    var coversList=[];   // для экспорта
-    if(debtMode==='house' && Math.round(totalOver)>0){
-      vault.style.display='';
-      var covers='', left=totalOver;
-      lastCats.forEach(function(c){
-        if(c.sum<=0) return;
-        var st, cls;
-        if(left>=c.sum){ st='покрыто'; cls='full'; left-=c.sum; }
-        else if(left>0){ st='−'+f(left)+' из '+f(c.sum); cls='part'; left=0; }
-        else { st=f(c.sum); cls='part'; }
-        coversList.push(c.nm+': '+st);
-        covers+='<div class="vcov"><span class="nm">'+c.nm+'</span><span class="st '+cls+'">'+st+'</span></div>';
-      });
-      vault.innerHTML=
-        '<div class="vtop"><span class="vlbl">💰 Свободная касса</span><span class="vbig">'+f(totalOver)+'</span></div>'+
-        '<div class="vhint">Переплата по дому. Не возвращаем — пускаем в зачёт по порядку:</div>'+
-        '<div class="vcovers">'+covers+'</div>';
-    } else {
-      vault.style.display='none';
-    }
+    // --- Свободная касса: переплаты, идущие в зачёт выбранных категорий ---
+    lastVaultOver = (debtMode==='house') ? totalOver : 0;
+    var coversList = renderVault();
 
     // Снимок для экспорта/копирования раздела долгов:
     lastDebts = {
@@ -435,6 +434,90 @@
     document.getElementById('debts-foot').textContent = debtMode==='house'
       ? 'За дом: Соне скидка 30 000 ₽ на цену дома, поэтому делим (дом − 30к) ÷ 10. Все скидываются по 5к, кто 0 — должен всю долю. Кто переплатил — деньги не возвращаем, они идут в свободную кассу на еду/алко/бензин.'
       : 'За всю поездку: доля пацана и девочки разная (у пацанов в ней аренда вэна). Вычитаем уже скинутые 5к.';
+  }
+
+  // ===== Свободная касса: список с приоритетом (drag) и вкл/выкл =====
+  function renderVault(){
+    var vault=document.getElementById('vault');
+    var over=lastVaultOver;
+    if(!(Math.round(over)>0)){ vault.style.display='none'; return []; }
+    vault.style.display='';
+
+    var coversList=[];
+    var left=over;
+    var rowsHtml='';
+    vaultOrder.forEach(function(key){
+      var c=catByKey(key); if(!c) return;
+      var off = !!vaultOff[key] || c.sum<=0;
+      var st, cls;
+      if(off){ st='—'; cls='off'; }
+      else if(left>=c.sum){ st='покрыто'; cls='full'; left-=c.sum; }
+      else if(left>0){ st='−'+f(left)+' из '+f(c.sum); cls='part'; left=0; }
+      else { st=f(c.sum)+' (не покрыто)'; cls='part'; }
+      if(!off) coversList.push(c.nm+': '+st);
+      rowsHtml+=
+        '<div class="vcov'+(off?' is-off':'')+'" draggable="true" data-key="'+key+'">'+
+          '<span class="vdrag">⋮⋮</span>'+
+          '<span class="vchk" data-key="'+key+'">'+(off?'○':'●')+'</span>'+
+          '<span class="nm">'+c.nm+' <small>'+f(c.sum)+'</small></span>'+
+          '<span class="st '+cls+'">'+st+'</span>'+
+        '</div>';
+    });
+    var leftover = left;   // что осталось в кассе после всех включённых
+    vault.innerHTML=
+      '<div class="vtop"><span class="vlbl">💰 Свободная касса</span><span class="vbig">'+f(over)+'</span></div>'+
+      '<div class="vhint">Перетаскивай за ⋮⋮ — это приоритет. Тап по ● включает/выключает категорию. Касса гасит сверху вниз.</div>'+
+      '<div class="vcovers" id="vcovers">'+rowsHtml+'</div>'+
+      '<div class="vrest"><span>Остаток кассы</span><span class="'+(Math.round(leftover)>0?'pos':'')+'">'+f(leftover)+'</span></div>';
+
+    bindVaultEvents();
+    return coversList;
+  }
+
+  var dragKey=null;
+  function bindVaultEvents(){
+    var box=document.getElementById('vcovers');
+    if(!box) return;
+    // вкл/выкл
+    box.querySelectorAll('.vchk').forEach(function(el){
+      el.addEventListener('click', function(e){
+        e.stopPropagation();
+        var k=el.getAttribute('data-key');
+        vaultOff[k]=!vaultOff[k];
+        if(tg && tg.HapticFeedback) tg.HapticFeedback.selectionChanged();
+        renderVault();
+      });
+    });
+    box.querySelectorAll('.vcov').forEach(function(row){
+      // desktop drag
+      row.addEventListener('dragstart', function(){ dragKey=row.getAttribute('data-key'); row.classList.add('dragging'); });
+      row.addEventListener('dragend', function(){ row.classList.remove('dragging'); dragKey=null; });
+      row.addEventListener('dragover', function(e){ e.preventDefault();
+        var t=e.currentTarget.getAttribute('data-key');
+        reorder(dragKey, t);
+      });
+      // touch drag (iPhone)
+      row.addEventListener('touchstart', function(e){
+        dragKey=row.getAttribute('data-key'); row.classList.add('dragging');
+      }, {passive:true});
+      row.addEventListener('touchmove', function(e){
+        if(!dragKey) return;
+        var t=e.touches[0];
+        var el=document.elementFromPoint(t.clientX, t.clientY);
+        var tr=el && el.closest ? el.closest('.vcov') : null;
+        if(tr){ reorder(dragKey, tr.getAttribute('data-key')); }
+        e.preventDefault();
+      }, {passive:false});
+      row.addEventListener('touchend', function(){ row.classList.remove('dragging'); dragKey=null; });
+    });
+  }
+  function reorder(from, to){
+    if(!from || !to || from===to) return;
+    var fi=vaultOrder.indexOf(from), ti=vaultOrder.indexOf(to);
+    if(fi<0||ti<0) return;
+    vaultOrder.splice(fi,1);
+    vaultOrder.splice(ti,0,from);
+    renderVault();
   }
 
   function switchTab(which){
